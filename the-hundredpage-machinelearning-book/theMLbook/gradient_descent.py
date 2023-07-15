@@ -31,12 +31,8 @@ def update_w_and_b(spendings, sales, w, b, alpha):
     for i in range(N):
         spending = spendings[i]
         sale = sales[i]
-        print(f"spending: {spending}, sale: {sale}, dwdb: {(dr_dw, dr_db)}")
         dr_dw += -2 * spending * (sale - (w * spending + b))
         dr_db += -2 * (sale - (w * spending + b))
-
-    print(f"dr_dw: {dr_dw}")
-    print(f"dr_db: {dr_db}")
 
     # update w and b
     w = w - (dr_dw/float(N)) * alpha
@@ -67,7 +63,6 @@ def train(spendings, sales, w, b, alpha, epochs):
         #     fig1.savefig('../../Illustrations/gradient_descent-' + str(image_counter) + '.pdf', format='pdf', dpi=1000, bbox_inches = 'tight', pad_inches = 0)
         #     fig1.savefig('../../Illustrations/gradient_descent-' + str(image_counter) + '.png', dpi=1000, bbox_inches = 'tight', pad_inches = 0)
         #     image_counter += 1
-    print(f"loss: {loss(spendings, sales, w, b)}")
     return w, b
 
 def loss(spendings, sales, w, b):
@@ -78,9 +73,9 @@ def loss(spendings, sales, w, b):
     return total_error / N
 
 x, y = np.loadtxt(sys.argv[1], delimiter= ",", skiprows=1, unpack = True)
-w, b = train(x, y, 0.0, 0.0, 0.001, 1) #15000)
-print(f"w: {w}, b: {b}\n")
-
+w, b = train(x, y, 0.0, 0.0, 0.001, int(sys.argv[2])) #15000)
+print(f"w: {w}, b: {b}")
+print(f"loss: {loss(x, y, w, b)}\n")
 # plot_original_data()
 
 def predict(x, w, b):

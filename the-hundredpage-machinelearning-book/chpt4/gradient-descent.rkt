@@ -1,18 +1,21 @@
 #lang racket
 
 (displayln "Starting....\n")
+(flush-output)
 
 (require plot)
 (plot-new-window? #t)
 
 ; Parameters
 (define csv-file (make-parameter #f))
+(define epochs (make-parameter 1))
 
 ; parse command-line
 (define action
   (command-line
    #:once-each
    [("--csv-file") c "CSV filename" (csv-file c)]
+   [("--epochs") e "Epochs to train" (epochs (string->number e))]
    ))
 
 (define (csv-file-read csv-file field-sep)
@@ -36,6 +39,8 @@
 
 (define data (csv-file-read (csv-file) #px"\\s*\"?,\"?\\s*"))
 
+(define (ŷ w b) (λ (x) (+ (* w x) b)))
+
 (define (optimize data w b α)
   (let* [
          (data-len (length data))
@@ -47,7 +52,6 @@
     (match-let
         [
          ((list Δw Δb) (foldl (λ (xy acc)
-                                (printf "xy: ~a, acc: ~a\n" xy acc)
                                 (list
                                  (+ (first acc) (∂w (second xy) (first xy)))
                                  (+ (second acc) (∂b (second xy) (first xy)))))
@@ -58,25 +62,66 @@
       )
     )
   )
-(define an-epoch (optimize data 0 0 0.001))
-(pretty-print an-epoch)
+
+(define [train data epochs]
+  (let* [
+         (w 0)
+         (b 0)
+         (α 0.001)
+         (snapshot
+          (compose zero? (curryr remainder (quotient epochs 10))))
+         ]
+    (let loop [(epochs epochs)
+               (w w)
+               (b b)
+               (regressions '())]
+      (if (zero? epochs) (cons (list w b) regressions)
+          (let [(new-wb (optimize data w b α))]
+            (loop (sub1 epochs) (first new-wb) (second new-wb)
+                  (if (snapshot epochs)
+                      (cons (list w b) regressions)
+                      regressions
+                      )
+                  )
+            )
+          )
+      )
+    )
+  )
+(define regressions (train data (epochs)))
 
 (define (mse data w b)
   (let* [
          (data-len (length data))
-         (predicted-y (λ (x) (+ (* w x) b)))
-         (err (λ (y x) (- y (predicted-y x))))
+         (ŷ (ŷ w b))
+         (err (λ (x y) (- y (ŷ x))))
          (err² (compose sqr err))
          (map-err² (curry map (curry apply err²)))
          (sum-err² (compose (curry apply +) map-err²))
+         (total-err (sum-err² data))
          ]
-    (printf "data: ~a, w: ~a, b: ~a\n" data w b)
-    (/ (sum-err² data) data-len)
+    (/ total-err data-len)
     )
   )
 
-(pretty-print (mse data (first an-epoch) (second an-epoch)))
+(pretty-print regressions)
+(pretty-print (mse data (caar regressions) (cadar regressions)))
+(pretty-print ((ŷ (caar regressions) (cadar regressions)) 23))
 
-(plot #:x-min -0.5 #:x-max 51 #:y-min -0.5 #:y-max 27.5
-      (points data))
+(define (make-plot renderers)
+  (plot #:height 600 #:width 600
+        #:x-min -0.5 #:x-max 51 #:y-min -0.5 #:y-max 27.5
+        renderers
+        )
+  )
 
+(make-plot
+ (append
+  (list (points data #:sym 'fullcircle #:fill-color 'blue #:alpha 0.4))
+  (map
+   (compose (curry function #:color 'red) (curry apply ŷ))
+   (reverse (cdr regressions)))
+  (list (function #:color 'green (ŷ (caar regressions) (cadar regressions))))
+  )
+ )
+;(function (ŷ (caar regressions) (cadar regressions)))
